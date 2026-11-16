@@ -62,7 +62,11 @@ if (args.Length > 0)
     }
 }
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory
+});
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
