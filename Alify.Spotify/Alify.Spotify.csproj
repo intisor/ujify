@@ -24,6 +24,16 @@
     <PackageReference Include="TickerQ.Dashboard" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="HtmlAgilityPack" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+  </PropertyGroup>
+
+  <!-- Embed wwwroot directly into assembly so standalone single-file exe serves CSS/JS anywhere without wwwroot folder -->
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\**" Exclude="wwwroot\**\*.map;wwwroot\**\*.rtl.*;wwwroot\**\*LICENSE*" />
   </ItemGroup>
 
   <!-- Exclude developer source maps and RTL assets from wwwroot publish output -->

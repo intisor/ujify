@@ -189,6 +189,16 @@ app.Use(async (context, next) =>
 app.UseHttpLogging();
 app.UseOutputCache();
 app.UseStaticFiles();
+
+// In standalone single-file mode, serve static assets (CSS, JS, icons) embedded in the assembly
+var embeddedProvider = new Microsoft.Extensions.FileProviders.ManifestEmbeddedFileProvider(
+    typeof(Program).Assembly, "wwwroot");
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = embeddedProvider,
+    RequestPath = ""
+});
+
 app.UseRouting();
 app.UseSession();
 app.UseAuthorization();
