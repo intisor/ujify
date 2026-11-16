@@ -9,12 +9,10 @@
     <SelfContained Condition="'$(PublishSingleFile)' == 'true'">true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract Condition="'$(PublishSingleFile)' == 'true'">true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile Condition="'$(PublishSingleFile)' == 'true'">true</EnableCompressionInSingleFile>
-    <PublishTrimmed Condition="'$(PublishSingleFile)' == 'true'">true</PublishTrimmed>
-    <TrimMode Condition="'$(PublishSingleFile)' == 'true'">partial</TrimMode>
-    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
     <ApplicationIcon>wwwroot\favicon.ico</ApplicationIcon>
-    <AssemblyTitle>Alify</AssemblyTitle>
-    <Product>Alify</Product>
+    <AssemblyTitle>Ujify</AssemblyTitle>
+    <Product>Ujify</Product>
+    <AssemblyName>Ujify</AssemblyName>
     <Version>1.5.1</Version>
   </PropertyGroup>
 

@@ -29,14 +29,15 @@ jobs:
       - name: Publish Single-File Executable
         run: dotnet publish Alify.Spotify/Alify.Spotify.csproj -c Release -r win-x64 -p:PublishSingleFile=true -o ./publish/win-x64
 
-      - name: Compress Release Archive
+      - name: Stage Standalone Single-File Executable
         run: |
-          Copy-Item "publish\win-x64\Alify.Spotify.exe" "publish\win-x64\Alify.exe" -Force
-          Compress-Archive -Path 'publish\win-x64\*' -DestinationPath 'publish\Alify-Windows-x64.zip' -Force
+          mkdir release-assets
+          Copy-Item "publish\win-x64\Ujify.exe" "release-assets\Ujify.exe" -Force
+          Compress-Archive -Path 'publish\win-x64\Ujify.exe' -DestinationPath 'release-assets\Ujify-Windows-x64.zip' -Force
 
       - name: Upload Windows Executable Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Alify-Windows-x64
-          path: publish/Alify-Windows-x64.zip
+          name: Ujify-Windows-x64
+          path: release-assets/*
           retention-days: 30
