@@ -9,6 +9,9 @@
     <SelfContained Condition="'$(PublishSingleFile)' == 'true'">true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract Condition="'$(PublishSingleFile)' == 'true'">true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile Condition="'$(PublishSingleFile)' == 'true'">true</EnableCompressionInSingleFile>
+    <PublishTrimmed Condition="'$(PublishSingleFile)' == 'true'">true</PublishTrimmed>
+    <TrimMode Condition="'$(PublishSingleFile)' == 'true'">partial</TrimMode>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
     <ApplicationIcon>wwwroot\favicon.ico</ApplicationIcon>
     <AssemblyTitle>Alify</AssemblyTitle>
     <Product>Alify</Product>
@@ -23,6 +26,12 @@
     <PackageReference Include="TickerQ.Dashboard" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="HtmlAgilityPack" />
+  </ItemGroup>
+
+  <!-- Exclude developer source maps and RTL assets from wwwroot publish output -->
+  <ItemGroup>
+    <Content Update="wwwroot\**\*.map" CopyToPublishDirectory="Never" />
+    <Content Update="wwwroot\**\*.rtl.*" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
 </Project>
