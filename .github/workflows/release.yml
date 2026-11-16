@@ -78,7 +78,6 @@ jobs:
         run: |
           mkdir release-assets
           Copy-Item "publish\win-x64\Ujify.exe" "release-assets\Ujify.exe" -Force
-          Copy-Item "publish\win-x64\Ujify.exe" "release-assets\Alify.exe" -Force
           Compress-Archive -Path 'publish\win-x64\Ujify.exe' -DestinationPath 'release-assets\Ujify-Windows-x64.zip' -Force
 
       - name: Upload Windows Staging Artifact
@@ -86,8 +85,8 @@ jobs:
         with:
           name: staged-desktop
           path: |
-            release-assets/*.exe
-            release-assets/*.zip
+            release-assets/Ujify.exe
+            release-assets/Ujify-Windows-x64.zip
 
   publish-github-release:
     name: Create GitHub Release
@@ -113,11 +112,7 @@ jobs:
           files: |
             final-release/Ujify.apk
             final-release/Ujify.exe
-            final-release/Alify.exe
             final-release/Ujify-Windows-x64.zip
-            final-release/**/*.apk
-            final-release/**/*.exe
-            final-release/**/*.zip
           fail_on_unmatched_files: false
           generate_release_notes: true
           draft: false
