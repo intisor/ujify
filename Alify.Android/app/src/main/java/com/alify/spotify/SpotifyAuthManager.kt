@@ -25,19 +25,29 @@ class SpotifyAuthManager(private val context: Context) {
 
         fun isSpotifyOnlyMode(context: Context): Boolean {
             val prefs = context.getSharedPreferences(SPOTIFY_PREFS, Context.MODE_PRIVATE)
-            return !prefs.getString("custom_client_id", null).isNullOrBlank()
+            val hasId = !prefs.getString("custom_client_id", null).isNullOrBlank()
+            return prefs.getBoolean("pref_spotify_mode_enabled", hasId)
         }
     }
 
+    var isSpotifyModeEnabled: Boolean
+        get() = prefs.getBoolean("pref_spotify_mode_enabled", hasClientId)
+        set(value) = prefs.edit().putBoolean("pref_spotify_mode_enabled", value).apply()
+
     var customClientId: String?
         get() = prefs.getString("custom_client_id", null)
-        set(value) = prefs.edit().putString("custom_client_id", value).apply()
+        set(value) {
+            prefs.edit().putString("custom_client_id", value).apply()
+            if (!value.isNullOrBlank()) {
+                isSpotifyModeEnabled = true
+            }
+        }
 
     val hasClientId: Boolean
         get() = !customClientId.isNullOrBlank()
 
     val isSpotifyOnlyMode: Boolean
-        get() = hasClientId
+        get() = isSpotifyModeEnabled
 
     val clientId: String?
         get() = customClientId?.takeIf { it.isNotBlank() }

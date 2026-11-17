@@ -140,6 +140,46 @@
                     android:inputType="textNoSuggestions"
                     android:singleLine="true" />
 
+                <!-- Small Mode Switch: Spotify Dedicated Mode vs Universal Mode -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Spotify Dedicated Mode"
+                            android:textColor="@color/spotify_light_text"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="1dp"
+                            android:text="Bypasses non-Spotify device controls for clean cloud playback"
+                            android:textColor="@color/spotify_sub_text"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchSpotifyMode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:scaleX="0.85"
+                        android:scaleY="0.85"
+                        app:useMaterialThemeColors="true" />
+                </LinearLayout>
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

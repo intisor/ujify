@@ -33,7 +33,11 @@ class AlifyMonitorService : Service() {
     private val mediaStateListener: () -> Unit = {
         wakeUpSignal.trySend(Unit)
     }
-    private val httpClient = OkHttpClient()
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     private lateinit var authManager: SpotifyAuthManager
     private val lrclibClient = LrclibClient()

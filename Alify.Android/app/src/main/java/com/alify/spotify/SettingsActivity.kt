@@ -278,8 +278,9 @@ class SettingsActivity : AppCompatActivity() {
     private fun loadPreferences() {
         val filterPrefs = getSharedPreferences("alify_filter_prefs", Context.MODE_PRIVATE)
 
-        // Spotify Client ID
+        // Spotify Client ID & Dedicated Mode Switch
         binding.etSpotifyClientId.setText(authManager.customClientId ?: "")
+        binding.switchSpotifyMode.isChecked = authManager.isSpotifyModeEnabled
 
         // Chat-to-Filter Custom Prompt
         binding.etCustomEthosPrompt.setText(filterPrefs.getString("custom_ethos_prompt", ""))
@@ -312,9 +313,11 @@ class SettingsActivity : AppCompatActivity() {
     private fun savePreferences() {
         val filterPrefs = getSharedPreferences("alify_filter_prefs", Context.MODE_PRIVATE)
 
-        // Save Spotify Client ID
+        // Save Spotify Client ID & Dedicated Mode Setting
         val customClientId = binding.etSpotifyClientId.text?.toString()?.trim()
         authManager.customClientId = if (customClientId.isNullOrEmpty()) null else customClientId
+        authManager.isSpotifyModeEnabled = binding.switchSpotifyMode.isChecked
+
         val modeMsg = if (authManager.isSpotifyOnlyMode) "Settings saved (Spotify-only mode active)" else "Settings saved (Universal mode active)"
 
         // Save Filter & AI Preferences (Intelligently unified defaults)
