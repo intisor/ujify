@@ -328,7 +328,7 @@ class SettingsActivity : AppCompatActivity() {
             .putInt("filter_strictness", binding.sbStrictnessSettings.progress)
             .putBoolean("filter_explicit", false)
             .putBoolean("enable_gemini", true)
-            .putBoolean("enable_vibe_swap", true)
+            .putBoolean("enable_vibe_swap", false)
             .putBoolean("enable_surgical_ducking", true)
             .putString("gemini_api_key", binding.etAiApiKey.text?.toString()?.trim() ?: "")
             .putString("ai_custom_model", binding.etAiCustomModel.text?.toString()?.trim() ?: "")

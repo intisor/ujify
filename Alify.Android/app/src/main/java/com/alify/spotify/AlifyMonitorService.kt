@@ -18,7 +18,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -55,7 +54,6 @@ class AlifyMonitorService : Service() {
     private var currentPlaybackProgressMs: Long = 0L
     private var progressTimestamp: Long = 0L
 
-    private var lastSanctuaryAutoplayTimeMs = 0L
     private val inFlightFlaggedTrackId = AtomicReference<String?>(null)
 
     private fun getCurrentPositionMs(): Long {
@@ -243,27 +241,16 @@ class AlifyMonitorService : Service() {
             }
         }
 
-        if (responseCode == 204) {
-            attemptPostSkipEmptyQueueRecovery(token)
+        if (responseCode == 204 || body.isNullOrBlank()) {
             return
         }
-
-        if (body.isNullOrBlank()) return
 
         val json = JSONObject(body)
         val isPlaying = json.optBoolean("is_playing", false)
-        val contextUri = json.optJSONObject("context")?.optString("uri")?.takeIf { it.isNotBlank() }
-        val item = json.optJSONObject("item")
-        val trackId = item?.optString("id")?.takeIf { it.isNotBlank() }
+        if (!isPlaying) return
 
-        QueueSyncManager.recordPlayerSnapshot(contextUri, trackId, isPlaying)
-
-        if (!isPlaying) {
-            attemptPostSkipEmptyQueueRecovery(token)
-            return
-        }
-
-        if (item == null) return
+        val item = json.optJSONObject("item") ?: return
+        val trackId = item.optString("id")?.takeIf { it.isNotBlank() }
 
         currentPlaybackProgressMs = json.optLong("progress_ms", 0L)
         progressTimestamp = System.currentTimeMillis()
@@ -276,26 +263,6 @@ class AlifyMonitorService : Service() {
         } else "Unknown Artist"
 
         processTrackPlayback(trackId, trackName, artistName, isExplicit, token)
-    }
-
-    private suspend fun attemptPostSkipEmptyQueueRecovery(token: String) {
-        val lastSkipTs = QueueSyncManager.lastUjifySkipTimestampMs
-        if (lastSkipTs <= 0L) return
-
-        val elapsedMs = System.currentTimeMillis() - lastSkipTs
-        if (elapsedMs in 1000L..6000L) {
-            Log.i(TAG, "Detected paused playback ${elapsedMs}ms after Ujify skip; recovering queue...")
-            val seedUris = VibeSubstituteService.getVerifiedCleanSeedUris(
-                context = this@AlifyMonitorService,
-                filterEngine = filterEngine,
-                lrclibClient = queueLrclibClient,
-                excludeTitle = lastTrackName,
-                limit = 3
-            )
-            QueueSyncManager.recoverFromEmptyQueuePause(token, seedUris)
-        } else if (elapsedMs > 6000L) {
-            QueueSyncManager.lastUjifySkipTimestampMs = 0L
-        }
     }
 
     private suspend fun processTrackPlayback(
@@ -555,14 +522,6 @@ class AlifyMonitorService : Service() {
         try {
             val liveQueue = QueueSyncManager.fetchLiveQueue(token)
             val countToPreAudit = minOf(4, liveQueue.size)
-            val filterPrefs = getSharedPreferences("alify_filter_prefs", Context.MODE_PRIVATE)
-            val enableVibeSwap = filterPrefs.getBoolean("enable_vibe_swap", true)
-            val profileName = when (filterEngine.profile) {
-                EthosProfile.ISLAMIC -> "Islamic"
-                EthosProfile.CHRISTIAN -> "Christian"
-                EthosProfile.FAMILY_FRIENDLY -> "Family Safe"
-                EthosProfile.GENERAL -> "Conscious"
-            }
 
             for (i in 0 until countToPreAudit) {
                 val qTrack = liveQueue[i]
@@ -587,75 +546,6 @@ class AlifyMonitorService : Service() {
                 }
 
                 Log.i(TAG, "Upcoming track '${qTrack.name}' pre-audited: flagged=${qResult.isFlagged}")
-
-                if (qResult.isFlagged) {
-                    QueueSyncManager.markTrackFlagged(qTrack.id)
-                }
-
-                // Lookahead Pre-Resolution (in-memory only; never mutate Spotify's live queue prematurely!)
-                if (i == 0 && qResult.isFlagged && enableVibeSwap && qTrack.id.isNotBlank()) {
-                    if (!QueueSyncManager.hasPreResolvedSister(qTrack.id)) {
-                        val sisterTrack = VibeSubstituteService.findCleanSisterTrack(
-                            context = this@AlifyMonitorService,
-                            flaggedTrack = qTrack.name,
-                            flaggedArtist = qTrack.artist,
-                            flagReason = qResult.flagReason ?: "Flagged in upcoming queue",
-                            profileName = profileName,
-                            spotifyToken = token,
-                            filterEngine = filterEngine,
-                            lrclibClient = queueLrclibClient
-                        )
-                        if (sisterTrack?.spotifyUri != null) {
-                            QueueSyncManager.putPreResolvedSister(qTrack.id, sisterTrack)
-                            Log.i(TAG, "Autonomous Guardian: Pre-resolved verified sister '${sisterTrack.title}' for upcoming flagged track '${qTrack.name}'")
-                        }
-                    }
-                }
-            }
-
-            // Autonomous Sanctuary Autoplay:
-            // When queue is low (<= 2 tracks remaining), extend cleanly with verified tracks matching the current session.
-            val now = System.currentTimeMillis()
-            if (liveQueue.size <= 2 && enableVibeSwap && (now - lastSanctuaryAutoplayTimeMs > 60000L)) {
-                val sessionTrack = lastTrackName
-                val sessionArtist = lastArtistName
-                if (sessionTrack.isNotBlank() && sessionTrack != "No track playing" && !isLastFlagged) {
-                    lastSanctuaryAutoplayTimeMs = now
-                    Log.i(TAG, "Autonomous Sanctuary Autoplay: Queue low (${liveQueue.size} tracks). Extending session based on '$sessionTrack' by '$sessionArtist'")
-
-                    val existingUris = liveQueue.map { it.uri }.toSet()
-                    val verifiedSeedUri = VibeSubstituteService.getVerifiedCleanSeedUris(
-                        context = this@AlifyMonitorService,
-                        filterEngine = filterEngine,
-                        lrclibClient = queueLrclibClient,
-                        excludeTitle = sessionTrack,
-                        limit = 3
-                    ).firstOrNull { !existingUris.contains(it) }
-
-                    if (verifiedSeedUri != null) {
-                        val ok = VibeSubstituteService.enqueueTrack(verifiedSeedUri, token)
-                        if (ok) {
-                            Log.i(TAG, "Autonomous Sanctuary Autoplay: Enqueued verified clean seed ($verifiedSeedUri)")
-                        }
-                    } else {
-                        val sisterTrack = VibeSubstituteService.findCleanSisterTrack(
-                            context = this@AlifyMonitorService,
-                            flaggedTrack = sessionTrack,
-                            flaggedArtist = sessionArtist,
-                            flagReason = "Extending session with matching clean sister vibes",
-                            profileName = profileName,
-                            spotifyToken = token,
-                            filterEngine = filterEngine,
-                            lrclibClient = queueLrclibClient
-                        )
-                        if (sisterTrack?.spotifyUri != null && !existingUris.contains(sisterTrack.spotifyUri)) {
-                            val ok = VibeSubstituteService.enqueueTrack(sisterTrack.spotifyUri, token)
-                            if (ok) {
-                                Log.i(TAG, "Autonomous Sanctuary Autoplay: Extended queue with verified '${sisterTrack.title}' by '${sisterTrack.artist}'")
-                            }
-                        }
-                    }
-                }
             }
         } catch (e: Exception) {
             Log.d(TAG, "Queue pre-auditing skipped or unavailable: ${e.message}")
@@ -663,11 +553,11 @@ class AlifyMonitorService : Service() {
     }
 
     /**
-     * AI Dynamic Vibe-Swap & Synchronized Multi-Queue Transition:
+     * Zero-Lag Soft Glide Skip:
      * 1. Instantly ducks hardware STREAM_MUSIC to 0 (0ms latency, zero explicit leakage).
-     * 2. Uses pre-resolved (or fast-resolved) verified clean sister track + live preserved upcoming queue.
-     * 3. Atomically reconstructs playback via QueueSyncManager so upcoming clean tracks are never wiped or paused.
-     * 4. Smoothly ramps hardware volume back up in `finally`.
+     * 2. Skips directly via Spotify REST API (or MediaSession in Universal mode) without tampering
+     *    with Spotify's native queue, playlist context, or Autoplay.
+     * 3. Smoothly ramps hardware volume back up in `finally`.
      */
     private fun handleFlaggedTrack(
         trackName: String,
@@ -677,79 +567,15 @@ class AlifyMonitorService : Service() {
     ) {
         val effectiveId = currentTrackId ?: "$artistName::$trackName".lowercase()
         if (!inFlightFlaggedTrackId.compareAndSet(null, effectiveId)) {
-            Log.d(TAG, "Flagged track '$trackName' ignored: another swap/skip is already in flight")
+            Log.d(TAG, "Flagged track '$trackName' ignored: another skip is already in flight")
             return
         }
 
         duckAudioImmediate()
 
-        val filterPrefs = getSharedPreferences("alify_filter_prefs", Context.MODE_PRIVATE)
-        val enableVibeSwap = filterPrefs.getBoolean("enable_vibe_swap", true)
-        val activePkg = UjifyMediaNotificationListener.activePackageName
-        val isSpotifyContext = authManager.isSpotifyOnlyMode ||
-            activePkg == null ||
-            UjifyMediaNotificationListener.SPOTIFY_PACKAGES.contains(activePkg)
-
         scope.launch {
             try {
-                var swapped = false
-                if (enableVibeSwap && isSpotifyContext && !token.isNullOrBlank()) {
-                    try {
-                        val profileName = when (filterEngine.profile) {
-                            EthosProfile.ISLAMIC -> "Islamic"
-                            EthosProfile.CHRISTIAN -> "Christian"
-                            EthosProfile.FAMILY_FRIENDLY -> "Family Safe"
-                            EthosProfile.GENERAL -> "Conscious"
-                        }
-
-                        val sisterTrack = QueueSyncManager.consumePreResolvedSister(effectiveId)
-                            ?: withTimeoutOrNull(4500L) {
-                                VibeSubstituteService.findCleanSisterTrack(
-                                    context = this@AlifyMonitorService,
-                                    flaggedTrack = trackName,
-                                    flaggedArtist = artistName,
-                                    flagReason = flagReason,
-                                    profileName = profileName,
-                                    spotifyToken = token,
-                                    filterEngine = filterEngine,
-                                    lrclibClient = queueLrclibClient
-                                )
-                            }
-
-                        val fallbackSeeds = withTimeoutOrNull(2000L) {
-                            VibeSubstituteService.getVerifiedCleanSeedUris(
-                                context = this@AlifyMonitorService,
-                                filterEngine = filterEngine,
-                                lrclibClient = queueLrclibClient,
-                                excludeTitle = trackName,
-                                limit = 2
-                            )
-                        } ?: emptyList()
-
-                        swapped = QueueSyncManager.executeSynchronizedSwap(
-                            token = token,
-                            flaggedTrackId = currentTrackId,
-                            sisterTrack = sisterTrack,
-                            fallbackCleanSeeds = fallbackSeeds
-                        )
-
-                        if (swapped) {
-                            val msg = if (sisterTrack != null) {
-                                "Swapped to: ${sisterTrack.title} - ${sisterTrack.artist}"
-                            } else {
-                                "Skipped to next clean track"
-                            }
-                            updateNotification(msg)
-                            Log.i(TAG, "Synchronized multi-queue swap complete: $msg")
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Vibe substitution failed for '$trackName': ${e.message}", e)
-                    }
-                }
-
-                if (!swapped) {
-                    performSkip(token)
-                }
+                performSkip(token)
             } finally {
                 inFlightFlaggedTrackId.compareAndSet(effectiveId, null)
                 glideVolumeRestore()
